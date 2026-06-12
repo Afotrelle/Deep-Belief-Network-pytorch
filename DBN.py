@@ -105,7 +105,8 @@ class DBN(nn.Module):
                      train_data,
                      train_loader,
                      num_epochs=50,
-                     batch_size=10):
+                     batch_size=10,
+                     transform=None):
         """Greedy Layer By Layer training
         Keeping previous layers as static
 
@@ -113,6 +114,10 @@ class DBN(nn.Module):
         :param train_loader: DataLoader for the first layer's training data
         :param num_epochs:  (Default value = 50)
         :param batch_size:  (Default value = 10)
+        :param transform: optional callable (e.g. a torchvision transforms composition)
+                          applied per-sample to the raw input during the first layer's
+                          training. Subsequent layers train on activations and are not
+                          augmented. (Default value = None)
         """
         tmp = train_data
         current_loader = train_loader
@@ -121,7 +126,8 @@ class DBN(nn.Module):
             print("-" * 20)
             print("Training RBM layer {}".format(i + 1))
 
-            self.rbm_layers[i].fit(current_loader, num_epochs, batch_size)
+            layer_transform = transform if i == 0 else None
+            self.rbm_layers[i].fit(current_loader, num_epochs, batch_size, layer_transform)
 
             v = tmp.view((tmp.shape[0], -1)).float()
             if self.rbm_layers[i].use_gpu:
@@ -139,7 +145,7 @@ class DBN(nn.Module):
         return
 
     def train_ith(self, train_data, train_labels, num_epochs, batch_size,
-                  ith_layer):
+                  ith_layer, transform=None):
         """taking ith layer at once
         can be used for fine tuning
 
@@ -148,12 +154,20 @@ class DBN(nn.Module):
         :param num_epochs: 
         :param batch_size: 
         :param ith_layer:
+        :param transform: optional callable (e.g. a torchvision transforms composition)
+                          applied per-sample to the raw input before passing through
+                          preceding layers. (Default value = None)
         """
         if (ith_layer - 1 > len(self.rbm_layers) or ith_layer <= 0):
             print("Layer index out of range")
             return
         ith_layer = ith_layer - 1
-        v = train_data.view((train_data.shape[0], -1)).float()
+
+        if transform is not None:
+            v = torch.stack([transform(sample) for sample in train_data]).float()
+        else:
+            v = train_data.float()
+        v = v.view((v.shape[0], -1))
 
         for ith in range(ith_layer):
             p_v, v = self.rbm_layers[ith].forward(v)

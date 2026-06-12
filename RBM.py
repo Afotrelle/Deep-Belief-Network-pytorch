@@ -215,12 +215,14 @@ class RBM(nn.Module):
         return self.contrastive_divergence(input_data, True,
                                            n_gibbs_sampling_steps, lr)
 
-    def fit(self, train_dataloader, num_epochs=50, batch_size=16):
+    def fit(self, train_dataloader, num_epochs=50, batch_size=16, transform=None):
         """Main training procedure.
 
         :param train_dataloader: 
         :param num_epochs:  (Default value = 50)
         :param batch_size:  (Default value = 16)
+        :param transform: optional callable (e.g. a torchvision transforms composition)
+                          applied to each sample before flattening. (Default value = None)
         """
 
         self.batch_size = batch_size
@@ -240,6 +242,9 @@ class RBM(nn.Module):
             grad_ = torch.FloatTensor(n_batches, 1)
 
             for i, (batch, _) in enumerate(train_loader):
+
+                if transform is not None:
+                    batch = torch.stack([transform(sample) for sample in batch])
 
                 batch = batch.view(len(batch), self.visible_units)
 
