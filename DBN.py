@@ -1,9 +1,7 @@
 """This file contains the implementation of a Deep Belief Network, stacking several Restricted Boltzmann Machines
 implemented in RBM.py."""
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
-import torch.nn.functional as F
 from RBM import RBM
 
 
@@ -25,8 +23,7 @@ class DBN(nn.Module):
 
         self.device = torch.device("cuda") if use_gpu else torch.device("cpu")
         self.n_layers = len(hidden_units)
-        self.rbm_layers = []
-        self.rbm_nodes = []
+        self.rbm_layers = nn.ModuleList()
 
         # Creating different RBM layers
         for i in range(self.n_layers):
@@ -95,12 +92,12 @@ class DBN(nn.Module):
         """
         p_h = input_data
         for i in range(len(self.rbm_layers)):
-            p_h = p_h.view((p_h.shape[0], -1)).type(torch.FloatTensor).to(self.device)  # flatten
+            p_h = p_h.view((p_h.shape[0], -1)).float().to(self.device)  # flatten
             p_h, h = self.rbm_layers[i].to_hidden(p_h)
 
         p_v = p_h
         for i in range(len(self.rbm_layers) - 1, -1, -1):
-            p_v = p_v.view((p_v.shape[0], -1)).type(torch.FloatTensor).to(self.device)
+            p_v = p_v.view((p_v.shape[0], -1)).float().to(self.device)
             p_v, v = self.rbm_layers[i].to_visible(p_v)
         return p_v, v
 
@@ -113,24 +110,32 @@ class DBN(nn.Module):
         Keeping previous layers as static
 
         :param train_data: 
-        :param train_labels: 
+        :param train_loader: DataLoader for the first layer's training data
         :param num_epochs:  (Default value = 50)
         :param batch_size:  (Default value = 10)
         """
         tmp = train_data
+        current_loader = train_loader
 
         for i in range(len(self.rbm_layers)):
             print("-" * 20)
             print("Training RBM layer {}".format(i + 1))
-            
-            self.rbm_layers[i].train(train_loader, num_epochs, batch_size)
-            # print(train_data.shape)
-            v = tmp.view((tmp.shape[0], -1)).type(torch.FloatTensor)  # flatten
+
+            self.rbm_layers[i].fit(current_loader, num_epochs, batch_size)
+
+            v = tmp.view((tmp.shape[0], -1)).float()
             if self.rbm_layers[i].use_gpu:
                 v = v.cuda()
             p_v, v = self.rbm_layers[i].forward(v)
-            tmp = p_v
-            # print(v.shape)
+            tmp = p_v.detach()
+
+            # Build a new DataLoader for the next layer using transformed data.
+            # Placeholder labels are required by DataLoader but unused during RBM training.
+            if i < len(self.rbm_layers) - 1:
+                placeholder_labels = torch.zeros(tmp.shape[0])
+                next_dataset = torch.utils.data.TensorDataset(tmp.cpu(), placeholder_labels)
+                current_loader = torch.utils.data.DataLoader(next_dataset,
+                                                             batch_size=batch_size)
         return
 
     def train_ith(self, train_data, train_labels, num_epochs, batch_size,
@@ -148,18 +153,18 @@ class DBN(nn.Module):
             print("Layer index out of range")
             return
         ith_layer = ith_layer - 1
-        v = train_data.view((train_data.shape[0], -1)).type(torch.FloatTensor)
+        v = train_data.view((train_data.shape[0], -1)).float()
 
         for ith in range(ith_layer):
             p_v, v = self.rbm_layers[ith].forward(v)
 
         tmp = v
-        tensor_x = tmp.type(torch.FloatTensor)  # transform to torch tensors
-        tensor_y = train_labels.type(torch.FloatTensor)
+        tensor_x = tmp.float()  # transform to torch tensors
+        tensor_y = train_labels.float()
         _dataset = torch.utils.data.TensorDataset(
             tensor_x, tensor_y)  # create your datset
         _dataloader = torch.utils.data.DataLoader(_dataset,
                                                   batch_size=batch_size,
                                                   drop_last=True)
-        self.rbm_layers[ith_layer].train(_dataloader, num_epochs, batch_size)
+        self.rbm_layers[ith_layer].fit(_dataloader, num_epochs, batch_size)
         return

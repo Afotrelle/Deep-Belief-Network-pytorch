@@ -2,20 +2,13 @@
 The RBM can be trained with the contrastive divergence algorithm and can be embedded in a hierarchical
 model in the DBN class."""
 import torch
-import torchvision
-import torchvision.transforms as transforms
-from torch.autograd import Variable
 import torch.nn as nn
-import torch.nn.functional as F
 import math
 from tqdm import tqdm
-import sys
-
-BATCH_SIZE = 64
 
 
 class RBM(nn.Module):
-    """This class defines all the functions needed for an BinaryRBN model
+    """This class defines all the functions needed for a BinaryRBM model
     where the visible and hidden units are both considered binary.
     """
     def __init__(self,
@@ -54,28 +47,22 @@ class RBM(nn.Module):
 
         # Initialization
         if not self.xavier_init:
-            self.W = torch.randn(self.visible_units,
-                                 self.hidden_units) * 0.1  # weights
+            W = torch.randn(self.visible_units, self.hidden_units) * 0.1
         else:
-            self.xavier_value = torch.sqrt(
-                torch.FloatTensor(
-                    [1.0 / (self.visible_units + self.hidden_units)]))
-            self.W = -self.xavier_value + \
-                torch.rand(self.visible_units, self.hidden_units) * (2 * self.xavier_value)
-        self.h_bias = torch.zeros(self.hidden_units)  # hidden layer bias
-        self.v_bias = torch.zeros(self.visible_units)  # visible layer bias
+            xavier_value = torch.sqrt(
+                torch.tensor(1.0 / (self.visible_units + self.hidden_units)))
+            W = -xavier_value + torch.rand(self.visible_units, self.hidden_units) * (2 * xavier_value)
 
-        self.v_bias_update = torch.zeros(self.visible_units)
-        self.h_bias_update = torch.zeros(self.hidden_units)
-        self.grad_update = torch.zeros(self.visible_units, self.hidden_units)
+        # Register weights and biases as buffers so they move correctly with .to(device)
+        self.register_buffer('W', W)
+        self.register_buffer('h_bias', torch.zeros(self.hidden_units))
+        self.register_buffer('v_bias', torch.zeros(self.visible_units))
+        self.register_buffer('v_bias_update', torch.zeros(self.visible_units))
+        self.register_buffer('h_bias_update', torch.zeros(self.hidden_units))
+        self.register_buffer('grad_update', torch.zeros(self.visible_units, self.hidden_units))
 
         if self.use_gpu:
-            self.W = self.W.cuda()
-            self.h_bias = self.h_bias.cuda()
-            self.v_bias = self.v_bias.cuda()
-            self.v_bias_update = self.v_bias_update.cuda()
-            self.h_bias_update = self.h_bias_update.cuda()
-            self.grad_update = self.grad_update.cuda()
+            self.cuda()
 
     def to_hidden(self, X):
         """Converts the data in visible layer to hidden layer
@@ -127,7 +114,8 @@ class RBM(nn.Module):
 
         :param data:
         """
-        return self.contrastive_divergence(data, False)
+        error, _ = self.contrastive_divergence(data, False)
+        return error
 
     def reconstruct(self, X, n_gibbs):
         """This will reconstruct the sample with k steps of gibbs Sampling
@@ -177,7 +165,7 @@ class RBM(nn.Module):
 
         # Update parameters
         if training:
-            batch_size = self.batch_size
+            batch_size = input_data.shape[0]
 
             g = (positive_associations - negative_associations)
             self.grad_update = self.momentum * self.grad_update + lr * (g / batch_size - self.weight_decay * self.W)
@@ -214,8 +202,8 @@ class RBM(nn.Module):
         :param num_epochs:
         """
         if self.increase_to_cd_k:
-            n_gibbs_sampling_steps = int(
-                math.ceil((epoch / num_epochs) * self.k))
+            n_gibbs_sampling_steps = max(1, int(
+                math.ceil(((epoch + 1) / num_epochs) * self.k)))
         else:
             n_gibbs_sampling_steps = self.k
             
@@ -227,7 +215,7 @@ class RBM(nn.Module):
         return self.contrastive_divergence(input_data, True,
                                            n_gibbs_sampling_steps, lr)
 
-    def train(self, train_dataloader, num_epochs=50, batch_size=16):
+    def fit(self, train_dataloader, num_epochs=50, batch_size=16):
         """Main training procedure.
 
         :param train_dataloader: 
@@ -257,7 +245,7 @@ class RBM(nn.Module):
 
                 if self.use_gpu:
                     batch = batch.cuda()
-                cost_[i - 1], grad_[i - 1] = self.step(batch, epoch,
+                cost_[i], grad_[i] = self.step(batch, epoch,
                                                        num_epochs)
 
             #if epoch % 10 == 0:
