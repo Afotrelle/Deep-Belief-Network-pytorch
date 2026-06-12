@@ -220,7 +220,7 @@ class RBM(nn.Module):
             n_gibbs_sampling_steps = self.k
 
         if self.learning_rate_decay:
-            lr = self.learning_rate * (learning_rate_decay**epoch)
+            lr = self.learning_rate * (self.learning_rate_decay ** epoch)
         else:
             lr = self.learning_rate
 
