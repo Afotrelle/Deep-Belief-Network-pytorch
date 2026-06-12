@@ -14,7 +14,7 @@ class DBN(nn.Module):
                  hidden_units=[64, 100],
                  k=2,
                  learning_rate=1e-5,
-                 learning_rate_decay=False,
+                 learning_rate_decay=1.0,
                  weight_decay=.0002,
                  initial_momentum=.5,
                  final_momentum=.9,
