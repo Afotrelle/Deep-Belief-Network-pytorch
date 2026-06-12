@@ -106,7 +106,7 @@ class DBN(nn.Module):
 
     def train_static(self,
                      train_data,
-                     train_labels,
+                     train_loader,
                      num_epochs=50,
                      batch_size=10):
         """Greedy Layer By Layer training
@@ -122,17 +122,8 @@ class DBN(nn.Module):
         for i in range(len(self.rbm_layers)):
             print("-" * 20)
             print("Training RBM layer {}".format(i + 1))
-
-            # transform to torch tensors
-            tensor_x = tmp.type(torch.FloatTensor)
-            tensor_y = train_labels.type(torch.FloatTensor)
-            _dataset = torch.utils.data.TensorDataset(
-                tensor_x, tensor_y)  # create your dataset
-            _dataloader = torch.utils.data.DataLoader(
-                _dataset, batch_size=batch_size,
-                drop_last=True)  # create your DataLoader
-
-            self.rbm_layers[i].train(_dataloader, num_epochs, batch_size)
+            
+            self.rbm_layers[i].train(train_loader, num_epochs, batch_size)
             # print(train_data.shape)
             v = tmp.view((tmp.shape[0], -1)).type(torch.FloatTensor)  # flatten
             if self.rbm_layers[i].use_gpu:
