@@ -220,11 +220,11 @@ class RBM(nn.Module):
             n_gibbs_sampling_steps = self.k
 
         if self.learning_rate_decay:
-            lr = self.learning_rate / epoch
+            lr = self.learning_rate * (learning_rate_decay**epoch)
         else:
             lr = self.learning_rate
 
-        if epoch > 5:
+        if epoch > num_epochs/2:
             self.momentum = self.final_momentum
 
         return self.contrastive_divergence(input_data, True,
@@ -263,9 +263,9 @@ class RBM(nn.Module):
                 cost_[i - 1], grad_[i - 1] = self.step(batch, epoch,
                                                        num_epochs)
 
-            if epoch % 10 == 0:
-                print("|{:02d}    |{:.4f}     "
-                      "|{:.4f}       |{:.4f}   "
-                      "|{:.4f}     |".format(epoch, torch.mean(cost_), torch.std(cost_), torch.mean(grad_), torch.std(grad_)))
+            #if epoch % 10 == 0:
+            print("|{:02d}    |{:.4f}     "
+                  "|{:.4f}       |{:.4f}   "
+                  "|{:.4f}     |".format(epoch, torch.mean(cost_), torch.std(cost_), torch.mean(grad_), torch.std(grad_)))
 
         return
