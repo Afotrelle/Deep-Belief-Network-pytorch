@@ -38,6 +38,7 @@ class RBM(nn.Module):
         self.learning_rate = learning_rate
         self.learning_rate_decay = learning_rate_decay
         self.weight_decay = weight_decay
+        self.initial_momentum = initial_momentum
         self.momentum = initial_momentum
         self.final_momentum = final_momentum
         self.xavier_init = xavier_init
@@ -209,8 +210,7 @@ class RBM(nn.Module):
             
         lr = self.learning_rate * (self.learning_rate_decay ** epoch)
 
-        if epoch > num_epochs/2:
-            self.momentum = self.final_momentum
+        self.momentum = self.initial_momentum + (self.final_momentum - self.initial_momentum) * (epoch - 1) / max(num_epochs - 1, 1)
 
         return self.contrastive_divergence(input_data, True,
                                            n_gibbs_sampling_steps, lr)
