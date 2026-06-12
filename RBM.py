@@ -23,7 +23,7 @@ class RBM(nn.Module):
                  hidden_units=64,
                  k=2,
                  learning_rate=1e-5,
-                 learning_rate_decay=False,
+                 learning_rate_decay=1.0,
                  weight_decay=.0002,
                  initial_momentum=.5,
                  final_momentum=.9,
@@ -218,11 +218,8 @@ class RBM(nn.Module):
                 math.ceil((epoch / num_epochs) * self.k))
         else:
             n_gibbs_sampling_steps = self.k
-
-        if self.learning_rate_decay:
-            lr = self.learning_rate * (self.learning_rate_decay ** epoch)
-        else:
-            lr = self.learning_rate
+            
+        lr = self.learning_rate * (self.learning_rate_decay ** epoch)
 
         if epoch > num_epochs/2:
             self.momentum = self.final_momentum
